@@ -122,9 +122,16 @@
         const records = await grist.docApi.fetchTable(table.tableId);
         
         // Trouver la colonne "Date de réalisation"
+        // Grist remplace les espaces et accents par des underscores
         const dateColumn = Object.keys(records).find(key => 
-          key.toLowerCase().includes('date') && key.toLowerCase().includes('realisation')
-        ) || 'Date_de_realisation';
+          key.toLowerCase().replace(/_/g, '').includes('datede') && 
+          key.toLowerCase().replace(/_/g, '').includes('realisation')
+        ) || 'Date_de_realisation' || 'Date_de_r_alisation';
+
+        // Trouver la colonne "Realise"
+        const realiseColumn = Object.keys(records).find(key => 
+          key.toLowerCase().replace(/_/g, '').includes('realise')
+        ) || 'Realise';
 
         if (!records[dateColumn]) {
           document.getElementById('loading').innerHTML = 
@@ -133,17 +140,25 @@
         }
 
         const dates = records[dateColumn];
+        const realises = records[realiseColumn] || [];
         
-        // Regrouper par semaine
+        // Regrouper par semaine (seulement les actes réalisés)
         const weekCounts = {};
         let totalActes = 0;
+        let totalNonRealises = 0;
         
-        dates.forEach(date => {
+        dates.forEach((date, index) => {
           if (date) {
-            totalActes++;
-            const monday = getMonday(date);
-            const weekKey = monday.toISOString().split('T')[0];
-            weekCounts[weekKey] = (weekCounts[weekKey] || 0) + 1;
+            // Ne compter que les actes réalisés (Realise = true)
+            const estRealise = realises[index];
+            if (estRealise === true || estRealise === 1) {
+              totalActes++;
+              const monday = getMonday(date);
+              const weekKey = monday.toISOString().split('T')[0];
+              weekCounts[weekKey] = (weekCounts[weekKey] || 0) + 1;
+            } else {
+              totalNonRealises++;
+            }
           }
         });
 
@@ -161,7 +176,11 @@
         document.getElementById('stats').innerHTML = `
           <div class="stat-box">
             <div class="stat-value">${totalActes}</div>
-            <div class="stat-label">Total des actes</div>
+            <div class="stat-label">Actes réalisés</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value">${totalNonRealises}</div>
+            <div class="stat-label">En attente</div>
           </div>
           <div class="stat-box">
             <div class="stat-value">${nbWeeks}</div>
@@ -170,10 +189,6 @@
           <div class="stat-box">
             <div class="stat-value">${moyenne}</div>
             <div class="stat-label">Moyenne/semaine</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-value">${max}</div>
-            <div class="stat-label">Maximum</div>
           </div>
         `;
 
@@ -192,7 +207,7 @@
           data: {
             labels: labels,
             datasets: [{
-              label: 'Nombre d\'actes d\'enquête',
+              label: 'Actes réalisés',
               data: data,
               backgroundColor: 'rgba(0, 48, 130, 0.7)',
               borderColor: 'rgba(0, 48, 130, 1)',
