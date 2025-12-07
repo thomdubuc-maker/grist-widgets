@@ -104,6 +104,7 @@
     }
 
     let chart = null;
+    let isReady = false;
 
     async function updateChart() {
       try {
@@ -114,12 +115,14 @@
           return;
         }
 
-        // Préparer le widget
-        await grist.ready();
+        // Préparer le widget (une seule fois)
+        if (!isReady) {
+          await grist.ready({ columns: ['$Date_de_realisation', '$Realise'] });
+          isReady = true;
+        }
         
         // Récupérer toutes les données de la table
-        const table = await grist.selectedTable.fetchSelectedTable();
-        const records = await grist.docApi.fetchTable(table.tableId);
+        const records = await grist.fetchSelectedTable();
         
         // Trouver la colonne "Date de réalisation"
         // Grist utilise parfois des $ et des underscores
@@ -291,13 +294,18 @@
       }
     }
 
-    // Initialiser le graphique
-    updateChart();
-
-    // Mettre à jour le graphique quand les données changent
+    // Initialiser le graphique au chargement
     if (typeof grist !== 'undefined') {
-      grist.onRecords(() => updateChart());
+      grist.onRecord(function(record) {
+        updateChart();
+      });
+      grist.onRecords(function(records) {
+        updateChart();
+      });
     }
+    
+    // Premier chargement
+    updateChart();
   </script>
 </body>
 </html>
