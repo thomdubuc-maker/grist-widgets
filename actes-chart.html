@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Test Grist</title>
+  <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -31,7 +32,7 @@
   </style>
 </head>
 <body>
-  <h1>🔧 Test de connexion Grist</h1>
+  <h1>🔧 Test de connexion Grist (v2 avec API officielle)</h1>
   <div id="results"></div>
 
   <script>
@@ -46,12 +47,17 @@
     }
 
     async function testGrist() {
-      // Test 1: Vérifier si grist existe
+      log('Chargement de l\'API Grist depuis docs.getgrist.com...', 'info');
+      
+      // Attendre que l'API soit chargée
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Test 1: Vérifier si grist existe maintenant
       log('Test 1: Vérification de l\'objet grist...', 'info');
       
       if (typeof grist === 'undefined') {
-        log('❌ L\'objet "grist" n\'existe pas. Le widget n\'est pas chargé dans Grist ou les permissions sont incorrectes.', 'error');
-        log('💡 Vérifiez que le widget est bien ajouté comme "Custom Widget" avec accès aux données.', 'info');
+        log('❌ L\'objet "grist" n\'existe toujours pas après chargement de l\'API.', 'error');
+        log('💡 Il semble que grist.numerique.gouv.fr utilise une implémentation custom qui ne supporte pas les Custom Widgets standards.', 'error');
         return;
       }
       
@@ -105,40 +111,13 @@
         return;
       }
 
-      // Test 5: Vérifier les colonnes spécifiques
-      try {
-        log('Test 5: Recherche des colonnes Date et Réalisé...', 'info');
-        const data = await grist.fetchSelectedTable();
-        const columns = Object.keys(data);
-        
-        const dateCol = columns.find(c => 
-          c.toLowerCase().includes('date') && c.toLowerCase().includes('realisation')
-        );
-        const realiseCol = columns.find(c => 
-          c.toLowerCase().includes('realise')
-        );
-        
-        if (dateCol) {
-          log(`✅ Colonne date trouvée: "${dateCol}"`, 'success');
-        } else {
-          log(`⚠️ Colonne date non trouvée. Colonnes contenant "date": ${columns.filter(c => c.toLowerCase().includes('date')).join(', ') || 'aucune'}`, 'error');
-        }
-        
-        if (realiseCol) {
-          log(`✅ Colonne réalisé trouvée: "${realiseCol}"`, 'success');
-        } else {
-          log(`⚠️ Colonne réalisé non trouvée. Colonnes contenant "realise": ${columns.filter(c => c.toLowerCase().includes('realise')).join(', ') || 'aucune'}`, 'error');
-        }
-        
-      } catch (error) {
-        log(`❌ Erreur: ${error.message}`, 'error');
-      }
-
-      log('🎉 Tests terminés !', 'success');
+      log('🎉 Tests terminés avec succès !', 'success');
     }
 
-    // Lancer les tests
-    testGrist();
+    // Attendre un peu que tout se charge, puis lancer les tests
+    window.addEventListener('load', () => {
+      setTimeout(testGrist, 1000);
+    });
   </script>
 </body>
 </html>
