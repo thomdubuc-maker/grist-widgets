@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Actes d'Enquête par Semaine</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f5f5f5;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #003082;
+      text-align: center;
+      margin-bottom: 30px;
+      font-size: 24px;
+    }
+    #chartContainer {
+      position: relative;
+      height: 500px;
+      margin-top: 20px;
+    }
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #666;
+      font-size: 18px;
+    }
+    .stats {
+      display: flex;
+      justify-content: space-around;
+      margin-bottom: 30px;
+      flex-wrap: wrap;
+    }
+    .stat-box {
+      background: #f0f4ff;
+      padding: 20px;
+      border-radius: 6px;
+      text-align: center;
+      min-width: 150px;
+      margin: 10px;
+    }
+    .stat-value {
+      font-size: 32px;
+      font-weight: bold;
+      color: #003082;
+    }
+    .stat-label {
+      color: #666;
+      margin-top: 5px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📊 Actes d'Enquête par Semaine</h1>
+    <div class="stats" id="stats"></div>
+    <div id="chartContainer">
+      <canvas id="myChart"></canvas>
+    </div>
+    <div class="loading" id="loading">Chargement des données...</div>
+  </div>
+
+  <script>
+    // Fonction pour obtenir le numéro de semaine
+    function getWeekNumber(date) {
+      const d = new Date(date);
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() + 4 - (d.getDay() || 7));
+      const yearStart = new Date(d.getFullYear(), 0, 1);
+      const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+      return weekNo;
+    }
+
+    // Fonction pour obtenir le lundi de la semaine
+    function getMonday(date) {
+      const d = new Date(date);
+      const day = d.getDay();
+      const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+      return new Date(d.setDate(diff));
+    }
+
+    // Fonction pour formater la date en "Semaine XX - YYYY"
+    function formatWeekLabel(date) {
+      const d = new Date(date);
+      const weekNum = getWeekNumber(d);
+      const year = d.getFullYear();
+      const monday = getMonday(d);
+      const day = monday.getDate();
+      const month = monday.getMonth() + 1;
+      return `S${weekNum} (${day}/${month})`;
+    }
+
+    let chart = null;
+
+    async function updateChart() {
+      try {
+        // Vérifier si l'API Grist est disponible
+        if (typeof grist === 'undefined') {
+          document.getElementById('loading').innerHTML = 
+            '⚠️ Widget non connecté à Grist.<br><small>Veuillez l\'intégrer comme Custom Widget dans Grist.</small>';
+          return;
+        }
+
+        // Préparer le widget
+        await grist.ready();
+        
+        // Récupérer toutes les données de la table
+        const table = await grist.selectedTable.fetchSelectedTable();
+        const records = await grist.docApi.fetchTable(table.tableId);
+        
+        // Trouver la colonne "Date de réalisation"
+        const dateColumn = Object.keys(records).find(key => 
+          key.toLowerCase().includes('date') && key.toLowerCase().includes('realisation')
+        ) || 'Date_de_realisation';
+
+        if (!records[dateColumn]) {
+          document.getElementById('loading').innerHTML = 
+            '⚠️ Colonne "Date de réalisation" non trouvée.<br><small>Vérifiez le nom de la colonne dans votre table.</small>';
+          return;
+        }
+
+        const dates = records[dateColumn];
+        
+        // Regrouper par semaine
+        const weekCounts = {};
+        let totalActes = 0;
+        
+        dates.forEach(date => {
+          if (date) {
+            totalActes++;
+            const monday = getMonday(date);
+            const weekKey = monday.toISOString().split('T')[0];
+            weekCounts[weekKey] = (weekCounts[weekKey] || 0) + 1;
+          }
+        });
+
+        // Trier par date
+        const sortedWeeks = Object.keys(weekCounts).sort();
+        const labels = sortedWeeks.map(weekKey => formatWeekLabel(weekKey));
+        const data = sortedWeeks.map(weekKey => weekCounts[weekKey]);
+
+        // Calculer les statistiques
+        const nbWeeks = sortedWeeks.length;
+        const moyenne = nbWeeks > 0 ? (totalActes / nbWeeks).toFixed(1) : 0;
+        const max = Math.max(...data, 0);
+
+        // Afficher les statistiques
+        document.getElementById('stats').innerHTML = `
+          <div class="stat-box">
+            <div class="stat-value">${totalActes}</div>
+            <div class="stat-label">Total des actes</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value">${nbWeeks}</div>
+            <div class="stat-label">Semaines</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value">${moyenne}</div>
+            <div class="stat-label">Moyenne/semaine</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-value">${max}</div>
+            <div class="stat-label">Maximum</div>
+          </div>
+        `;
+
+        // Masquer le message de chargement
+        document.getElementById('loading').style.display = 'none';
+
+        // Créer ou mettre à jour le graphique
+        const ctx = document.getElementById('myChart').getContext('2d');
+        
+        if (chart) {
+          chart.destroy();
+        }
+
+        chart = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Nombre d\'actes d\'enquête',
+              data: data,
+              backgroundColor: 'rgba(0, 48, 130, 0.7)',
+              borderColor: 'rgba(0, 48, 130, 1)',
+              borderWidth: 2,
+              borderRadius: 4
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                display: true,
+                position: 'top',
+                labels: {
+                  font: {
+                    size: 14,
+                    family: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
+                  }
+                }
+              },
+              tooltip: {
+                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                padding: 12,
+                titleFont: {
+                  size: 14
+                },
+                bodyFont: {
+                  size: 13
+                },
+                callbacks: {
+                  label: function(context) {
+                    return context.parsed.y + ' acte(s)';
+                  }
+                }
+              }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  stepSize: 1,
+                  font: {
+                    size: 12
+                  }
+                },
+                title: {
+                  display: true,
+                  text: 'Nombre d\'actes',
+                  font: {
+                    size: 14,
+                    weight: 'bold'
+                  }
+                }
+              },
+              x: {
+                ticks: {
+                  font: {
+                    size: 11
+                  },
+                  maxRotation: 45,
+                  minRotation: 45
+                },
+                title: {
+                  display: true,
+                  text: 'Semaines',
+                  font: {
+                    size: 14,
+                    weight: 'bold'
+                  }
+                }
+              }
+            }
+          }
+        });
+
+      } catch (error) {
+        console.error('Erreur:', error);
+        document.getElementById('loading').innerHTML = 
+          `⚠️ Erreur lors du chargement des données:<br><small>${error.message}</small>`;
+      }
+    }
+
+    // Initialiser le graphique
+    updateChart();
+
+    // Mettre à jour le graphique quand les données changent
+    if (typeof grist !== 'undefined') {
+      grist.onRecords(() => updateChart());
+    }
+  </script>
+</body>
+</html>
