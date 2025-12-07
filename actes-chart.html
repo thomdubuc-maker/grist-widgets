@@ -106,23 +106,40 @@
     let chart = null;
     let isReady = false;
 
+    // Fonction de debug
+    function showDebug(message) {
+      console.log('DEBUG:', message);
+      const loadingDiv = document.getElementById('loading');
+      loadingDiv.innerHTML += '<br>' + message;
+    }
+
     async function updateChart() {
       try {
+        showDebug('Étape 1: Vérification de l\'API Grist...');
+        
         // Vérifier si l'API Grist est disponible
         if (typeof grist === 'undefined') {
           document.getElementById('loading').innerHTML = 
-            '⚠️ Widget non connecté à Grist.<br><small>Veuillez l\'intégrer comme Custom Widget dans Grist.</small>';
+            '⚠️ Widget non connecté à Grist.<br><small>L\'objet "grist" n\'est pas disponible. Vérifiez que le widget a les bonnes permissions.</small>';
           return;
         }
 
+        showDebug('Étape 2: API Grist trouvée, initialisation...');
+
         // Préparer le widget (une seule fois)
         if (!isReady) {
-          await grist.ready({ columns: ['$Date_de_realisation', '$Realise'] });
+          await grist.ready({ columns: ['$Date_de_realisation', '$Realise'], requiredAccess: 'read table' });
           isReady = true;
+          showDebug('Étape 3: Widget prêt !');
         }
+        
+        showDebug('Étape 4: Récupération des données...');
         
         // Récupérer toutes les données de la table
         const records = await grist.fetchSelectedTable();
+        
+        showDebug(`Étape 5: ${Object.keys(records).length} colonnes trouvées`);
+        showDebug(`Colonnes disponibles: ${Object.keys(records).join(', ')}`);
         
         // Trouver la colonne "Date de réalisation"
         // Grist utilise parfois des $ et des underscores
@@ -136,14 +153,19 @@
           key.toLowerCase().replace(/[$_]/g, '').includes('realise')
         ) || '$Realise' || 'Realise';
 
+        showDebug(`Colonne date trouvée: ${dateColumn}`);
+        showDebug(`Colonne réalisé trouvée: ${realiseColumn}`);
+
         if (!records[dateColumn]) {
           document.getElementById('loading').innerHTML = 
-            '⚠️ Colonne "Date de réalisation" non trouvée.<br><small>Vérifiez le nom de la colonne dans votre table.</small>';
+            `⚠️ Colonne "Date de réalisation" non trouvée.<br><small>Colonnes disponibles: ${Object.keys(records).join(', ')}</small>`;
           return;
         }
 
         const dates = records[dateColumn];
         const realises = records[realiseColumn] || [];
+        
+        showDebug(`Nombre d'enregistrements: ${dates.length}`);
         
         // Regrouper par semaine (seulement les actes réalisés)
         const weekCounts = {};
