@@ -3,331 +3,142 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Actes d'Enquête par Semaine</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+  <title>Test Grist</title>
   <style>
     body {
-      margin: 0;
+      font-family: Arial, sans-serif;
       padding: 20px;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background-color: #f5f5f5;
+      background: #f5f5f5;
     }
-    .container {
-      max-width: 1200px;
-      margin: 0 auto;
+    .status {
+      padding: 20px;
+      margin: 10px 0;
+      border-radius: 5px;
       background: white;
-      padding: 30px;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      border-left: 4px solid #ccc;
     }
-    h1 {
-      color: #003082;
-      text-align: center;
-      margin-bottom: 30px;
-      font-size: 24px;
-    }
-    #chartContainer {
-      position: relative;
-      height: 500px;
-      margin-top: 20px;
-    }
-    .loading {
-      text-align: center;
-      padding: 40px;
-      color: #666;
-      font-size: 18px;
-    }
-    .stats {
-      display: flex;
-      justify-content: space-around;
-      margin-bottom: 30px;
-      flex-wrap: wrap;
-    }
-    .stat-box {
-      background: #f0f4ff;
-      padding: 20px;
-      border-radius: 6px;
-      text-align: center;
-      min-width: 150px;
-      margin: 10px;
-    }
-    .stat-value {
-      font-size: 32px;
-      font-weight: bold;
-      color: #003082;
-    }
-    .stat-label {
-      color: #666;
-      margin-top: 5px;
-      font-size: 14px;
+    .success { border-color: #4CAF50; background: #e8f5e9; }
+    .error { border-color: #f44336; background: #ffebee; }
+    .info { border-color: #2196F3; background: #e3f2fd; }
+    pre {
+      background: #263238;
+      color: #aed581;
+      padding: 15px;
+      border-radius: 5px;
+      overflow-x: auto;
+      font-size: 12px;
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>📊 Actes d'Enquête par Semaine</h1>
-    <div class="stats" id="stats"></div>
-    <div id="chartContainer">
-      <canvas id="myChart"></canvas>
-    </div>
-    <div class="loading" id="loading">Chargement des données...</div>
-  </div>
+  <h1>🔧 Test de connexion Grist</h1>
+  <div id="results"></div>
 
   <script>
-    // Fonction pour obtenir le numéro de semaine
-    function getWeekNumber(date) {
-      const d = new Date(date);
-      d.setHours(0, 0, 0, 0);
-      d.setDate(d.getDate() + 4 - (d.getDay() || 7));
-      const yearStart = new Date(d.getFullYear(), 0, 1);
-      const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-      return weekNo;
+    const results = document.getElementById('results');
+
+    function log(message, type = 'info') {
+      const div = document.createElement('div');
+      div.className = `status ${type}`;
+      div.innerHTML = message;
+      results.appendChild(div);
+      console.log(type.toUpperCase() + ':', message);
     }
 
-    // Fonction pour obtenir le lundi de la semaine
-    function getMonday(date) {
-      const d = new Date(date);
-      const day = d.getDay();
-      const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-      return new Date(d.setDate(diff));
-    }
-
-    // Fonction pour formater la date en "Semaine XX - YYYY"
-    function formatWeekLabel(date) {
-      const d = new Date(date);
-      const weekNum = getWeekNumber(d);
-      const year = d.getFullYear();
-      const monday = getMonday(d);
-      const day = monday.getDate();
-      const month = monday.getMonth() + 1;
-      return `S${weekNum} (${day}/${month})`;
-    }
-
-    let chart = null;
-    let isReady = false;
-
-    // Fonction de debug
-    function showDebug(message) {
-      console.log('DEBUG:', message);
-      const loadingDiv = document.getElementById('loading');
-      loadingDiv.innerHTML += '<br>' + message;
-    }
-
-    async function updateChart() {
-      try {
-        showDebug('Étape 1: Vérification de l\'API Grist...');
-        
-        // Vérifier si l'API Grist est disponible
-        if (typeof grist === 'undefined') {
-          document.getElementById('loading').innerHTML = 
-            '⚠️ Widget non connecté à Grist.<br><small>L\'objet "grist" n\'est pas disponible. Vérifiez que le widget a les bonnes permissions.</small>';
-          return;
-        }
-
-        showDebug('Étape 2: API Grist trouvée, initialisation...');
-
-        // Préparer le widget (une seule fois)
-        if (!isReady) {
-          await grist.ready({ columns: ['$Date_de_realisation', '$Realise'], requiredAccess: 'read table' });
-          isReady = true;
-          showDebug('Étape 3: Widget prêt !');
-        }
-        
-        showDebug('Étape 4: Récupération des données...');
-        
-        // Récupérer toutes les données de la table
-        const records = await grist.fetchSelectedTable();
-        
-        showDebug(`Étape 5: ${Object.keys(records).length} colonnes trouvées`);
-        showDebug(`Colonnes disponibles: ${Object.keys(records).join(', ')}`);
-        
-        // Trouver la colonne "Date de réalisation"
-        // Grist utilise parfois des $ et des underscores
-        const dateColumn = Object.keys(records).find(key => 
-          key.toLowerCase().replace(/[$_]/g, '').includes('datede') && 
-          key.toLowerCase().replace(/[$_]/g, '').includes('realisation')
-        ) || '$Date_de_realisation' || 'Date_de_realisation';
-
-        // Trouver la colonne "Realise"
-        const realiseColumn = Object.keys(records).find(key => 
-          key.toLowerCase().replace(/[$_]/g, '').includes('realise')
-        ) || '$Realise' || 'Realise';
-
-        showDebug(`Colonne date trouvée: ${dateColumn}`);
-        showDebug(`Colonne réalisé trouvée: ${realiseColumn}`);
-
-        if (!records[dateColumn]) {
-          document.getElementById('loading').innerHTML = 
-            `⚠️ Colonne "Date de réalisation" non trouvée.<br><small>Colonnes disponibles: ${Object.keys(records).join(', ')}</small>`;
-          return;
-        }
-
-        const dates = records[dateColumn];
-        const realises = records[realiseColumn] || [];
-        
-        showDebug(`Nombre d'enregistrements: ${dates.length}`);
-        
-        // Regrouper par semaine (seulement les actes réalisés)
-        const weekCounts = {};
-        let totalActes = 0;
-        let totalNonRealises = 0;
-        
-        dates.forEach((date, index) => {
-          if (date) {
-            // Ne compter que les actes réalisés (Realise = true)
-            const estRealise = realises[index];
-            if (estRealise === true || estRealise === 1) {
-              totalActes++;
-              const monday = getMonday(date);
-              const weekKey = monday.toISOString().split('T')[0];
-              weekCounts[weekKey] = (weekCounts[weekKey] || 0) + 1;
-            } else {
-              totalNonRealises++;
-            }
-          }
-        });
-
-        // Trier par date
-        const sortedWeeks = Object.keys(weekCounts).sort();
-        const labels = sortedWeeks.map(weekKey => formatWeekLabel(weekKey));
-        const data = sortedWeeks.map(weekKey => weekCounts[weekKey]);
-
-        // Calculer les statistiques
-        const nbWeeks = sortedWeeks.length;
-        const moyenne = nbWeeks > 0 ? (totalActes / nbWeeks).toFixed(1) : 0;
-        const max = Math.max(...data, 0);
-
-        // Afficher les statistiques
-        document.getElementById('stats').innerHTML = `
-          <div class="stat-box">
-            <div class="stat-value">${totalActes}</div>
-            <div class="stat-label">Actes réalisés</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-value">${totalNonRealises}</div>
-            <div class="stat-label">En attente</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-value">${nbWeeks}</div>
-            <div class="stat-label">Semaines</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-value">${moyenne}</div>
-            <div class="stat-label">Moyenne/semaine</div>
-          </div>
-        `;
-
-        // Masquer le message de chargement
-        document.getElementById('loading').style.display = 'none';
-
-        // Créer ou mettre à jour le graphique
-        const ctx = document.getElementById('myChart').getContext('2d');
-        
-        if (chart) {
-          chart.destroy();
-        }
-
-        chart = new Chart(ctx, {
-          type: 'bar',
-          data: {
-            labels: labels,
-            datasets: [{
-              label: 'Actes réalisés',
-              data: data,
-              backgroundColor: 'rgba(0, 48, 130, 0.7)',
-              borderColor: 'rgba(0, 48, 130, 1)',
-              borderWidth: 2,
-              borderRadius: 4
-            }]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: {
-                display: true,
-                position: 'top',
-                labels: {
-                  font: {
-                    size: 14,
-                    family: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif"
-                  }
-                }
-              },
-              tooltip: {
-                backgroundColor: 'rgba(0, 0, 0, 0.8)',
-                padding: 12,
-                titleFont: {
-                  size: 14
-                },
-                bodyFont: {
-                  size: 13
-                },
-                callbacks: {
-                  label: function(context) {
-                    return context.parsed.y + ' acte(s)';
-                  }
-                }
-              }
-            },
-            scales: {
-              y: {
-                beginAtZero: true,
-                ticks: {
-                  stepSize: 1,
-                  font: {
-                    size: 12
-                  }
-                },
-                title: {
-                  display: true,
-                  text: 'Nombre d\'actes',
-                  font: {
-                    size: 14,
-                    weight: 'bold'
-                  }
-                }
-              },
-              x: {
-                ticks: {
-                  font: {
-                    size: 11
-                  },
-                  maxRotation: 45,
-                  minRotation: 45
-                },
-                title: {
-                  display: true,
-                  text: 'Semaines',
-                  font: {
-                    size: 14,
-                    weight: 'bold'
-                  }
-                }
-              }
-            }
-          }
-        });
-
-      } catch (error) {
-        console.error('Erreur:', error);
-        document.getElementById('loading').innerHTML = 
-          `⚠️ Erreur lors du chargement des données:<br><small>${error.message}</small>`;
+    async function testGrist() {
+      // Test 1: Vérifier si grist existe
+      log('Test 1: Vérification de l\'objet grist...', 'info');
+      
+      if (typeof grist === 'undefined') {
+        log('❌ L\'objet "grist" n\'existe pas. Le widget n\'est pas chargé dans Grist ou les permissions sont incorrectes.', 'error');
+        log('💡 Vérifiez que le widget est bien ajouté comme "Custom Widget" avec accès aux données.', 'info');
+        return;
       }
+      
+      log('✅ L\'objet "grist" existe !', 'success');
+
+      // Test 2: Vérifier les méthodes disponibles
+      log('Test 2: Méthodes disponibles dans grist:', 'info');
+      const methods = Object.keys(grist).filter(key => typeof grist[key] === 'function');
+      log(`<pre>${methods.join('\n')}</pre>`, 'info');
+
+      // Test 3: Initialiser grist
+      try {
+        log('Test 3: Initialisation avec grist.ready()...', 'info');
+        await grist.ready({ requiredAccess: 'read table' });
+        log('✅ grist.ready() réussi !', 'success');
+      } catch (error) {
+        log(`❌ Erreur lors de grist.ready(): ${error.message}`, 'error');
+        log(`<pre>${error.stack}</pre>`, 'error');
+        return;
+      }
+
+      // Test 4: Récupérer les données
+      try {
+        log('Test 4: Récupération des données avec fetchSelectedTable()...', 'info');
+        const data = await grist.fetchSelectedTable();
+        log('✅ Données récupérées !', 'success');
+        
+        // Afficher les colonnes disponibles
+        const columns = Object.keys(data);
+        log(`Colonnes trouvées (${columns.length}): <pre>${columns.join('\n')}</pre>`, 'success');
+        
+        // Afficher le nombre de lignes
+        if (columns.length > 0) {
+          const firstColumn = data[columns[0]];
+          log(`Nombre de lignes: ${firstColumn ? firstColumn.length : 0}`, 'success');
+          
+          // Afficher un échantillon de données
+          if (firstColumn && firstColumn.length > 0) {
+            log('Échantillon des 3 premières lignes:', 'info');
+            const sample = {};
+            columns.forEach(col => {
+              sample[col] = data[col].slice(0, 3);
+            });
+            log(`<pre>${JSON.stringify(sample, null, 2)}</pre>`, 'info');
+          }
+        }
+        
+      } catch (error) {
+        log(`❌ Erreur lors de fetchSelectedTable(): ${error.message}`, 'error');
+        log(`<pre>${error.stack}</pre>`, 'error');
+        return;
+      }
+
+      // Test 5: Vérifier les colonnes spécifiques
+      try {
+        log('Test 5: Recherche des colonnes Date et Réalisé...', 'info');
+        const data = await grist.fetchSelectedTable();
+        const columns = Object.keys(data);
+        
+        const dateCol = columns.find(c => 
+          c.toLowerCase().includes('date') && c.toLowerCase().includes('realisation')
+        );
+        const realiseCol = columns.find(c => 
+          c.toLowerCase().includes('realise')
+        );
+        
+        if (dateCol) {
+          log(`✅ Colonne date trouvée: "${dateCol}"`, 'success');
+        } else {
+          log(`⚠️ Colonne date non trouvée. Colonnes contenant "date": ${columns.filter(c => c.toLowerCase().includes('date')).join(', ') || 'aucune'}`, 'error');
+        }
+        
+        if (realiseCol) {
+          log(`✅ Colonne réalisé trouvée: "${realiseCol}"`, 'success');
+        } else {
+          log(`⚠️ Colonne réalisé non trouvée. Colonnes contenant "realise": ${columns.filter(c => c.toLowerCase().includes('realise')).join(', ') || 'aucune'}`, 'error');
+        }
+        
+      } catch (error) {
+        log(`❌ Erreur: ${error.message}`, 'error');
+      }
+
+      log('🎉 Tests terminés !', 'success');
     }
 
-    // Initialiser le graphique au chargement
-    if (typeof grist !== 'undefined') {
-      grist.onRecord(function(record) {
-        updateChart();
-      });
-      grist.onRecords(function(records) {
-        updateChart();
-      });
-    }
-    
-    // Premier chargement
-    updateChart();
+    // Lancer les tests
+    testGrist();
   </script>
 </body>
 </html>
