@@ -122,16 +122,16 @@
         const records = await grist.docApi.fetchTable(table.tableId);
         
         // Trouver la colonne "Date de réalisation"
-        // Grist remplace les espaces et accents par des underscores
+        // Grist utilise parfois des $ et des underscores
         const dateColumn = Object.keys(records).find(key => 
-          key.toLowerCase().replace(/_/g, '').includes('datede') && 
-          key.toLowerCase().replace(/_/g, '').includes('realisation')
-        ) || 'Date_de_realisation' || 'Date_de_r_alisation';
+          key.toLowerCase().replace(/[$_]/g, '').includes('datede') && 
+          key.toLowerCase().replace(/[$_]/g, '').includes('realisation')
+        ) || '$Date_de_realisation' || 'Date_de_realisation';
 
         // Trouver la colonne "Realise"
         const realiseColumn = Object.keys(records).find(key => 
-          key.toLowerCase().replace(/_/g, '').includes('realise')
-        ) || 'Realise';
+          key.toLowerCase().replace(/[$_]/g, '').includes('realise')
+        ) || '$Realise' || 'Realise';
 
         if (!records[dateColumn]) {
           document.getElementById('loading').innerHTML = 
